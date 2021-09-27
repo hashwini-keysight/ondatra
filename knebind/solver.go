@@ -29,7 +29,7 @@ func solve(tb *opb.Testbed, topo *kpb.Topology) (*assign, error) {
 	if len(tb.GetAtes()) > 0 {
 		return nil, errors.New("KNE binding does not yet support ATEs")
 	}
-	if numDUTs, numNodes := len(tb.GetDuts()), len(topo.GetNodes()); numDUTs > numNodes {
+	if numDUTs, numNodes := len(append(tb.GetDuts(), tb.GetOtgs()...)), len(topo.GetNodes()); numDUTs > numNodes {
 		return nil, errors.Errorf("Not enough nodes in KNE topology for specified testbed: "+
 			" testbed has %d DUTs and topology only has %d nodes", numDUTs, numNodes)
 	}
@@ -47,13 +47,13 @@ func solve(tb *opb.Testbed, topo *kpb.Topology) (*assign, error) {
 	}
 
 	// Cache various info in the solver about the testbed and topology.
-	for _, dut := range s.testbed.GetDuts() {
-		s.id2DUT[dut.GetId()] = dut
+	for _, d := range append(s.testbed.GetDuts(), s.testbed.GetOtgs()...) {
+		s.id2DUT[d.GetId()] = d
 		ports := make(map[string]*opb.Port)
-		for _, port := range dut.GetPorts() {
+		for _, port := range d.GetPorts() {
 			ports[port.GetId()] = port
 		}
-		s.dut2Ports[dut] = ports
+		s.dut2Ports[d] = ports
 	}
 	name2Node := make(map[string]*kpb.Node)
 	for _, node := range s.topology.GetNodes() {
@@ -82,6 +82,7 @@ func solve(tb *opb.Testbed, topo *kpb.Topology) (*assign, error) {
 type assign struct {
 	dut2Node  map[*opb.Device]*kpb.Node
 	port2Intf map[*opb.Port]*intf
+	topoNs    string
 }
 
 type intf struct {
@@ -113,21 +114,21 @@ func (s *solver) solve() (*assign, error) {
 	// for each of those, all the port->intf assignments.
 	dut2Nodes := make(map[interface{}][]interface{})
 	dut2Node2Port2Infs := make(map[*opb.Device]map[*kpb.Node]map[*opb.Port][]interface{})
-	for _, dut := range s.testbed.GetDuts() {
-		dut2Node2Port2Infs[dut] = make(map[*kpb.Node]map[*opb.Port][]interface{})
+	for _, d := range append(s.testbed.GetDuts(), s.testbed.GetOtgs()...) {
+		dut2Node2Port2Infs[d] = make(map[*kpb.Node]map[*opb.Port][]interface{})
 		var nodes []interface{}
 		for _, node := range s.topology.GetNodes() {
-			match, port2Infs := s.dutMatch(dut, node)
+			match, port2Infs := s.deviceMatch(d, node)
 			if match {
-				log.V(1).Infof("Found match testbed: %q -> topology: %q", dut.GetId(), node.GetName())
+				log.V(1).Infof("Found match testbed: %q -> topology: %q", d.GetId(), node.GetName())
 				nodes = append(nodes, node)
-				dut2Node2Port2Infs[dut][node] = port2Infs
+				dut2Node2Port2Infs[d][node] = port2Infs
 			}
 		}
 		if len(nodes) == 0 {
-			return nil, errors.Errorf("No node in KNE topology to match testbed %q", dut.GetId())
+			return nil, errors.Errorf("No node in KNE topology to match testbed %q", d.GetId())
 		}
-		dut2Nodes[dut] = nodes
+		dut2Nodes[d] = nodes
 	}
 
 	// Iterate over each of the possible testbed->topology combinations.
@@ -143,7 +144,7 @@ func (s *solver) solve() (*assign, error) {
 		}
 		port2IntfChan := genCombos(port2Intfs)
 		for port2Intf := range port2IntfChan {
-			if a := newAssign(dut2Node, port2Intf); s.linksMatch(a) {
+			if a := newAssign(dut2Node, port2Intf, s.topology.GetName()); s.linksMatch(a) {
 				// TODO: When solver is rewritten, signal the gorouting
 				// channel to exit early here and avoid leaving the goroutine hanging.
 				// Not disastrous but ideally the goroutines would terminate here.
@@ -176,25 +177,25 @@ func (s *solver) linksMatch(a *assign) bool {
 	return true
 }
 
-func (s *solver) dutMatch(dut *opb.Device, node *kpb.Node) (bool, map[*opb.Port][]interface{}) {
-	if dut.GetHardwareModel() != "" && dut.GetHardwareModel() != hardwareModel(node) {
+func (s *solver) deviceMatch(device *opb.Device, node *kpb.Node) (bool, map[*opb.Port][]interface{}) {
+	if device.GetHardwareModel() != "" && device.GetHardwareModel() != hardwareModel(node) {
 		return false, nil
 	}
-	if dut.GetSoftwareVersion() != "" && dut.GetSoftwareVersion() != softwareVersion(node) {
+	if device.GetSoftwareVersion() != "" && device.GetSoftwareVersion() != softwareVersion(node) {
 		return false, nil
 	}
-	if v := dut.GetVendor(); v != opb.Device_UNKNOWN && v != type2VendorMap[node.GetType()] {
+	if v := device.GetVendor(); v != opb.Device_UNKNOWN && v != type2VendorMap[node.GetType()] {
 		return false, nil
 	}
-	log.V(1).Infof("Found node match: %q", dut.GetId())
+	log.V(1).Infof("Found node match: %q", device.GetId())
 	intfs := s.node2Intfs[node]
 	log.V(1).Infof("Interfaces: %v", intfs)
 	// If the DUT needs more ports than the node, this node cannot match.
-	if len(dut.GetPorts()) > len(intfs) {
+	if len(device.GetPorts()) > len(intfs) {
 		return false, nil
 	}
 	port2Infs := make(map[*opb.Port][]interface{})
-	for _, port := range dut.GetPorts() {
+	for _, port := range device.GetPorts() {
 		var infs []interface{}
 		for _, intf := range intfs {
 			if s.portMatch(port, intf) {
@@ -266,10 +267,11 @@ func genRecurse(
 	}
 }
 
-func newAssign(dut2Node, port2Intf map[interface{}]interface{}) *assign {
+func newAssign(dut2Node, port2Intf map[interface{}]interface{}, topoNs string) *assign {
 	a := &assign{
 		dut2Node:  make(map[*opb.Device]*kpb.Node),
 		port2Intf: make(map[*opb.Port]*intf),
+		topoNs:    topoNs,
 	}
 	for d, n := range dut2Node {
 		a.dut2Node[d.(*opb.Device)] = n.(*kpb.Node)

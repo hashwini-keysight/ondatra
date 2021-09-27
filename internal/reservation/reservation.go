@@ -20,8 +20,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/pkg/errors"
 	"github.com/openconfig/ondatra/internal/usererr"
+	"github.com/pkg/errors"
 
 	opb "github.com/openconfig/ondatra/proto"
 )
@@ -31,6 +31,7 @@ type Reservation struct {
 	ID   string
 	DUTs map[string]*DUT
 	ATEs map[string]*ATE
+	OTGs map[string]*OTG
 }
 
 // Device is a reserved DUT or ATE.
@@ -79,6 +80,20 @@ func (a *ATE) String() string {
 	return fmt.Sprintf("ATE%+v", *a)
 }
 
+// OTG is a reserved OTG.
+type OTG struct {
+	*Dims
+}
+
+// Dimensions returns the dimensions of the OTG.
+func (a *OTG) Dimensions() *Dims {
+	return a.Dims
+}
+
+func (a *OTG) String() string {
+	return fmt.Sprintf("OTG%+v", *a)
+}
+
 // Port is a reserved Port.
 type Port struct {
 	Name string
@@ -94,6 +109,9 @@ func (r *Reservation) Device(id string) (Device, error) {
 		return d, nil
 	}
 	if a, err := r.ATE(id); err == nil { // if NO error
+		return a, nil
+	}
+	if a, err := r.OTG(id); err == nil { // if NO error
 		return a, nil
 	}
 	return nil, errors.Errorf("device ID %s not found in the reservation", id)
@@ -113,6 +131,14 @@ func (r *Reservation) ATE(id string) (*ATE, error) {
 		return a, nil
 	}
 	return nil, errors.Errorf("ATE ID %s not found in the reservation", id)
+}
+
+// OTG returns the reserved OTG with the given device ID.
+func (r *Reservation) OTG(id string) (*OTG, error) {
+	if a, ok := r.OTGs[id]; ok {
+		return a, nil
+	}
+	return nil, errors.Errorf("OTG ID %s not found in the reservation", id)
 }
 
 // Port returns the reserved port with the given ID.

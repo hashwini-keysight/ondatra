@@ -15,9 +15,10 @@
 package ondatra
 
 import (
-	"golang.org/x/net/context"
 	"testing"
 	"time"
+
+	"golang.org/x/net/context"
 
 	"github.com/openconfig/ondatra/internal/reservation"
 	"github.com/openconfig/ondatra/internal/testbed"
@@ -88,6 +89,31 @@ func ATEs(t testing.TB) map[string]*ATEDevice {
 
 func newATE(id string, res *reservation.ATE) *ATEDevice {
 	return &ATEDevice{&Device{id: id, res: res}}
+}
+
+// OTG returns the OTG in the testbed with a given id.
+func OTG(t testing.TB, id string) *Device {
+	t.Helper()
+	ra, err := checkRes(t).OTG(id)
+	if err != nil {
+		t.Fatalf("OTG(t, %s): %v", id, err)
+	}
+	return newOTG(id, ra)
+}
+
+// OTGs returns a map of OTG id to OTG in the testbed.
+func OTGs(t testing.TB) map[string]*Device {
+	t.Helper()
+	rm := checkRes(t).OTGs
+	m := make(map[string]*Device)
+	for id, ra := range rm {
+		m[id] = newOTG(id, ra)
+	}
+	return m
+}
+
+func newOTG(id string, res *reservation.OTG) *Device {
+	return &Device{id: id, res: res}
 }
 
 // ReservationID returns the reservation ID for the testbed.

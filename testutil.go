@@ -70,6 +70,35 @@ var (
 				},
 			}},
 		},
+		OTGs: map[string]*reservation.OTG{
+			"otg1": &reservation.OTG{&reservation.Dims{
+				Name:            "otg1",
+				Vendor:          opb.Device_IXIA,
+				HardwareModel:   "ixiaModel",
+				SoftwareVersion: "ixiaVersion",
+				Ports: map[string]*reservation.Port{
+					"port1": &reservation.Port{Name: "service-ixia-c-port1.ixia-c.svc.cluster.local:5555+service-ixia-c-port1.ixia-c.svc.cluster.local:50071"},
+				},
+			}},
+			"otg2": &reservation.OTG{&reservation.Dims{
+				Name:            "otg3",
+				Vendor:          opb.Device_IXIA,
+				HardwareModel:   "ixiaModel",
+				SoftwareVersion: "ixiaVersion",
+				Ports: map[string]*reservation.Port{
+					"port1": &reservation.Port{Name: "service-ixia-c-port2.ixia-c.svc.cluster.local:5555+service-ixia-c-port2.ixia-c.svc.cluster.local:50071"},
+				},
+			}},
+			"otg3": &reservation.OTG{&reservation.Dims{
+				Name:            "otg3",
+				Vendor:          opb.Device_IXIA,
+				HardwareModel:   "ixiaModel",
+				SoftwareVersion: "ixiaVersion",
+				Ports: map[string]*reservation.Port{
+					"port1": &reservation.Port{Name: "service-ixia-c-port3.ixia-c.svc.cluster.local:5555+service-ixia-c-port3.ixia-c.svc.cluster.local:50071"},
+				},
+			}},
+		},
 	}
 )
 

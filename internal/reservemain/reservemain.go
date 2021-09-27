@@ -16,13 +16,15 @@
 package reservemain
 
 import (
-	"golang.org/x/net/context"
 	"fmt"
 	"os"
 	"os/signal"
 	"time"
 
+	"golang.org/x/net/context"
+
 	"flag"
+
 	"github.com/openconfig/ondatra/internal/closer"
 	"github.com/openconfig/ondatra/internal/reservation"
 	"github.com/openconfig/ondatra/internal/testbed"
@@ -112,6 +114,12 @@ func printReservation(res *reservation.Reservation) {
 		}
 	}
 	for id, a := range res.ATEs {
+		printf(id, a.Name)
+		for pid, p := range a.Ports {
+			printf(pid, p.Name)
+		}
+	}
+	for id, a := range res.OTGs {
 		printf(id, a.Name)
 		for pid, p := range a.Ports {
 			printf(pid, p.Name)

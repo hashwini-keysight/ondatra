@@ -25,6 +25,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.1.0 // indirect
 	github.com/google/uuid v1.2.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
+	github.com/open-traffic-generator/snappi/gosnappi v0.6.1 // indirect
 	github.com/openconfig/grpctunnel v0.0.0-20210610163803-fde4a9dc048d // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	golang.org/x/sys v0.0.0-20210809222454-d867a43fc93e // indirect

@@ -21,8 +21,9 @@ option go_package = "github.com/openconfig/ondatra/proto";
 // A testbed.
 message Testbed {
   repeated Device duts = 1;
-  repeated Device ates = 2;
+  repeated Device ates = 2;  
   repeated Link links = 3;
+  repeated Device otgs = 4;
 }
 
 // A device.

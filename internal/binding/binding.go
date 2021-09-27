@@ -16,13 +16,15 @@
 package binding
 
 import (
-	"golang.org/x/net/context"
 	"io"
 	"time"
 
+	"golang.org/x/net/context"
+
 	log "github.com/golang/glog"
-	"google.golang.org/grpc"
+	"github.com/open-traffic-generator/snappi/gosnappi"
 	"github.com/openconfig/ondatra/internal/reservation"
+	"google.golang.org/grpc"
 
 	gpb "github.com/openconfig/gnmi/proto/gnmi"
 	bpb "github.com/openconfig/gnoi/bgp"
@@ -41,7 +43,6 @@ import (
 
 	opb "github.com/openconfig/ondatra/proto"
 	p4pb "github.com/p4lang/p4runtime/go/p4/v1"
-
 )
 
 var (
@@ -130,9 +131,17 @@ type Binding interface {
 	// Implementations must append transport security options necessary to reach the server.
 	DialConsole(ctx context.Context, dut *reservation.DUT, opts ...grpc.DialOption) (StreamClient, error)
 
-  // DialCLI creates a client connection to the specified DUT's CLI endpoint.
+	// DialCLI creates a client connection to the specified DUT's CLI endpoint.
 	// Implementations must append transport security options necessary to reach the server.
 	DialCLI(ctx context.Context, dut *reservation.DUT, opts ...grpc.DialOption) (StreamClient, error)
+
+	// DialOTG creates a client connection to the OTG endpoint for the specified OTG.
+	// Implementations must append transport security options necessary to reach the server.
+	DialOTG(ctx context.Context, server string, useHttps bool) (gosnappi.GosnappiApi, error)
+
+	// DialOTGGNMI creates a client connection to the OTG GNMI endpoint for the specified OTG.
+	// Implementations must append transport security options necessary to reach the server.
+	DialOTGGNMI(ctx context.Context, server string, opts ...grpc.DialOption) (gpb.GNMIClient, error)
 
 	// PushTopology pushes a topology to the ATE.
 	// The framework has already verified that there is at least one interface
