@@ -17,20 +17,21 @@ package ondatra
 import (
 	"bufio"
 	"bytes"
-	"golang.org/x/net/context"
 	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"google3/ops/netops/util/go/errdiff"
+	"golang.org/x/net/context"
+
 	"github.com/google/go-cmp/cmp"
-	"github.com/pkg/errors"
-	"google.golang.org/grpc"
+	"github.com/openconfig/gnmi/errdiff"
 	"github.com/openconfig/ondatra/internal/binding"
 	"github.com/openconfig/ondatra/internal/reservation"
 	"github.com/openconfig/ondatra/negtest"
+	"github.com/pkg/errors"
+	"google.golang.org/grpc"
 
 	gpb "github.com/openconfig/gnmi/proto/gnmi"
 	bpb "github.com/openconfig/gnoi/bgp"
@@ -46,7 +47,6 @@ import (
 	otpb "github.com/openconfig/gnoi/otdr"
 	spb "github.com/openconfig/gnoi/system"
 	wpb "github.com/openconfig/gnoi/wavelength_router"
-
 )
 
 var (
