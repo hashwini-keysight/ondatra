@@ -19,7 +19,8 @@ type WaitForOpts struct {
 }
 
 const (
-	CONTROLLER_SERVER_URL = "https://34.67.178.181:443"
+	CONTROLLER_SERVER_URL = "https://34.135.220.233:443"
+	GRPC_SERVER_URL       = "104.197.54.237:40051"
 )
 
 func TestGoSnappiFake(t *testing.T) {
@@ -51,7 +52,8 @@ func TestGoSnappiFake(t *testing.T) {
 		t.Errorf("Got unexpected diff in SetConfig and GetConfig : %s", diff)
 	}
 }
-func TestGoSnappiK8s(t *testing.T) {
+
+func TestGoSnappiK8s_001(t *testing.T) {
 	t.Log("TestGoSnappiK8s - START ...")
 	_, err := initKneBind("otg-kne-001.yaml", "otg-testbed-001.txt")
 	if err != nil {
@@ -61,15 +63,23 @@ func TestGoSnappiK8s(t *testing.T) {
 		t.Fatalf("reserve() call failed: %v", err)
 	}
 	otgs := OTGs(t)
-	api, err := binding.Get().DialOTG(context.Background(), CONTROLLER_SERVER_URL, true)
+	api, err := binding.Get().DialOTG(context.Background(), GRPC_SERVER_URL, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer api.NewConfig()
+	defer api.NewProtocolState().SetState(gosnappi.ProtocolStateState.STOP)
 
-	log.Println("Setting config ...")
 	config := PacketForwardBgpv6Config(api, otgs)
+	log.Printf("%s\n", config.ToYaml())
+	log.Println("Setting config ...")
 	if _, err := api.SetConfig(config); err != nil {
+		t.Fatal(err)
+	}
+
+	log.Println("Start protocol ...")
+	state := api.NewProtocolState().SetState(gosnappi.ProtocolStateState.START)
+	if _, err := api.SetProtocolState(state); err != nil {
 		t.Fatal(err)
 	}
 
@@ -97,6 +107,63 @@ func TestGoSnappiK8s(t *testing.T) {
 	}
 
 	t.Log("TestGoSnappiK8s - END ...")
+}
+func TestGoSnappiK8s_002(t *testing.T) {
+	t.Log("TestGoSnappiK8sEbgpv4Routes - START ...")
+	_, err := initKneBind("otg-kne-002.yaml", "otg-testbed-002.txt")
+	if err != nil {
+		t.Fatalf("initKneBind() call failed: %v", err)
+	}
+	if err := reserve("otg-testbed-002.txt", time.Hour, 0); err != nil {
+		t.Fatalf("reserve() call failed: %v", err)
+	}
+	otgs := OTGs(t)
+
+	//api, err := binding.Get().DialOTG(context.Background(), CONTROLLER_SERVER_URL, true)
+	api, err := binding.Get().DialOTG(context.Background(), GRPC_SERVER_URL, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer api.NewConfig()
+	defer api.NewProtocolState().SetState(gosnappi.ProtocolStateState.STOP)
+
+	config := Bgpv4RoutesConfig(api, otgs)
+	//log.Printf("%s\n", config.ToYaml())
+	log.Println("Setting config ...")
+	if _, err := api.SetConfig(config); err != nil {
+		t.Fatal(err)
+	}
+
+	log.Println("Start protocol ...")
+	state := api.NewProtocolState().SetState(gosnappi.ProtocolStateState.START)
+	if _, err := api.SetProtocolState(state); err != nil {
+		t.Fatal(err)
+	}
+
+	err = WaitFor(
+		func() (bool, error) { return AllBgp4SessionUp(api, config) }, nil,
+	)
+
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	log.Println("Starting transmit ...")
+	ts := api.NewTransmitState().SetState(gosnappi.TransmitStateState.START)
+	if _, err := api.SetTransmitState(ts); err != nil {
+		t.Fatal(err)
+	}
+
+	err = WaitFor(
+		func() (bool, error) { return PortAndFlowMetricsOk(api, config) }, nil,
+	)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("TestGoSnappiK8sEbgpv4Routes - END ...")
 }
 
 func PacketForwardBgpv6Config(api gosnappi.GosnappiApi, otgs map[string]*Device) gosnappi.Config {
@@ -410,6 +477,215 @@ func PortAndFlowMetricsOk(api gosnappi.GosnappiApi, config gosnappi.Config) (boo
 	log.Printf("################################################\n\n")
 
 	return expected == actual, nil
+}
+
+func Bgpv4RoutesConfig(api gosnappi.GosnappiApi, otgs map[string]*Device) gosnappi.Config {
+	config := api.NewConfig()
+
+	// add ports
+	p1 := config.Ports().Add().SetName("p1").SetLocation(otgs["otg1"].Ports()[0].Name())
+	p2 := config.Ports().Add().SetName("p2").SetLocation(otgs["otg2"].Ports()[0].Name())
+
+	// add devices
+	d1 := config.Devices().Add().SetName("p1d1")
+	d2 := config.Devices().Add().SetName("p2d1")
+
+	// add flows and common properties
+	for i := 1; i <= 2; i++ {
+		flow := config.Flows().Add()
+		flow.Metrics().SetEnable(true)
+		flow.Duration().FixedPackets().SetPackets(1000)
+		flow.Rate().SetPps(500)
+	}
+
+	// add protocol stacks for device d1
+	d1Eth1 := d1.Ethernets().
+		Add().
+		SetName("p1d1eth").
+		SetPortName(p1.Name()).
+		SetMac("00:00:01:01:01:01").
+		SetMtu(1500)
+
+	d1Eth1.
+		Ipv4Addresses().
+		Add().
+		SetName("p1d1ipv4").
+		SetAddress("1.1.1.2").
+		SetGateway("1.1.1.1").
+		SetPrefix(24)
+
+	d1Bgp := d1.Bgp().
+		SetRouterId("1.1.1.2")
+
+	d1BgpIpv4Interface1 := d1Bgp.
+		Ipv4Interfaces().Add().
+		SetIpv4Name("p1d1ipv4")
+
+	d1BgpIpv4Interface1Peer1 := d1BgpIpv4Interface1.
+		Peers().
+		Add().
+		SetAsNumber(2222).
+		SetAsType(gosnappi.BgpV4PeerAsType.EBGP).
+		SetPeerAddress("1.1.1.1").
+		SetName("p1d1bgpv4")
+
+	d1BgpIpv4Interface1Peer1V4Route1 := d1BgpIpv4Interface1Peer1.
+		V4Routes().
+		Add().
+		SetNextHopIpv4Address("1.1.1.2").
+		SetName("p1d1peer1rrv4").
+		SetNextHopAddressType(gosnappi.BgpV4RouteRangeNextHopAddressType.IPV4).
+		SetNextHopMode(gosnappi.BgpV4RouteRangeNextHopMode.MANUAL)
+
+	d1BgpIpv4Interface1Peer1V4Route1.Addresses().Add().
+		SetAddress("10.10.10.1").
+		SetPrefix(32).
+		SetCount(4).
+		SetStep(1)
+
+	d1BgpIpv4Interface1Peer1V4Route1.Advanced().
+		SetMultiExitDiscriminator(50).
+		SetOrigin(gosnappi.BgpRouteAdvancedOrigin.EGP)
+
+	d1BgpIpv4Interface1Peer1V4Route1.Communities().Add().
+		SetAsNumber(1).
+		SetAsCustom(2).
+		SetType(gosnappi.BgpCommunityType.MANUAL_AS_NUMBER)
+
+	d1BgpIpv4Interface1Peer1V4Route1AsPath := d1BgpIpv4Interface1Peer1V4Route1.AsPath().
+		SetAsSetMode(gosnappi.BgpAsPathAsSetMode.INCLUDE_AS_SET)
+
+	d1BgpIpv4Interface1Peer1V4Route1AsPath.Segments().Add().
+		SetAsNumbers([]int64{1112, 1113}).
+		SetType(gosnappi.BgpAsPathSegmentType.AS_SEQ)
+
+	// add protocol stacks for device d2
+	d2Eth1 := d2.Ethernets().
+		Add().
+		SetName("p2d1eth").
+		SetPortName(p2.Name()).
+		SetMac("00:00:02:02:02:02").
+		SetMtu(1500)
+
+	d2Eth1.
+		Ipv4Addresses().
+		Add().
+		SetName("p2d1ipv4").
+		SetAddress("2.2.2.2").
+		SetGateway("2.2.2.1").
+		SetPrefix(32)
+
+	d2Bgp := d2.Bgp().
+		SetRouterId("2.2.2.2")
+
+	d2BgpIpv4Interface1 := d2Bgp.
+		Ipv4Interfaces().Add().
+		SetIpv4Name("p2d1ipv4")
+
+	d2BgpIpv4Interface1Peer1 := d2BgpIpv4Interface1.
+		Peers().
+		Add().
+		SetAsNumber(3333).
+		SetAsType(gosnappi.BgpV4PeerAsType.EBGP).
+		SetPeerAddress("2.2.2.1").
+		SetName("p2d1bgpv4")
+
+	d2BgpIpv4Interface1Peer1V4Route1 := d2BgpIpv4Interface1Peer1.
+		V4Routes().
+		Add().
+		SetNextHopIpv4Address("2.2.2.2").
+		SetName("p2d1peer1rrv4").
+		SetNextHopAddressType(gosnappi.BgpV4RouteRangeNextHopAddressType.IPV4).
+		SetNextHopMode(gosnappi.BgpV4RouteRangeNextHopMode.MANUAL)
+
+	d2BgpIpv4Interface1Peer1V4Route1.Addresses().Add().
+		SetAddress("20.20.20.1").
+		SetPrefix(32).
+		SetCount(2).
+		SetStep(2)
+
+	d2BgpIpv4Interface1Peer1V4Route1.Advanced().
+		SetMultiExitDiscriminator(40).
+		SetOrigin(gosnappi.BgpRouteAdvancedOrigin.EGP)
+
+	d2BgpIpv4Interface1Peer1V4Route1.Communities().Add().
+		SetAsNumber(100).
+		SetAsCustom(2).
+		SetType(gosnappi.BgpCommunityType.MANUAL_AS_NUMBER)
+
+	d2BgpIpv4Interface1Peer1V4Route1AsPath := d2BgpIpv4Interface1Peer1V4Route1.AsPath().
+		SetAsSetMode(gosnappi.BgpAsPathAsSetMode.INCLUDE_AS_SET)
+
+	d2BgpIpv4Interface1Peer1V4Route1AsPath.Segments().Add().
+		SetAsNumbers([]int64{2223, 2224, 2225}).
+		SetType(gosnappi.BgpAsPathSegmentType.AS_SEQ)
+
+	// add endpoints and packet description flow 1
+	f1 := config.Flows().Items()[0]
+	f1.SetName(p1.Name() + " -> " + p2.Name()).
+		TxRx().Device().
+		SetTxNames([]string{d1BgpIpv4Interface1Peer1V4Route1.Name()}).
+		SetRxNames([]string{d2BgpIpv4Interface1Peer1V4Route1.Name()})
+
+	f1Eth := f1.Packet().Add().Ethernet()
+	f1Eth.Src().SetValue(d1Eth1.Mac())
+	f1Eth.Dst().SetValue("00:00:00:00:00:00")
+
+	f1Ip := f1.Packet().Add().Ipv4()
+	f1Ip.Src().SetValue("10.10.10.1")
+	f1Ip.Dst().SetValue("20.20.20.1")
+
+	// add endpoints and packet description flow 2
+	f2 := config.Flows().Items()[1]
+	f2.SetName(p2.Name() + " -> " + p1.Name()).
+		TxRx().Device().
+		SetTxNames([]string{d2BgpIpv4Interface1Peer1V4Route1.Name()}).
+		SetRxNames([]string{d1BgpIpv4Interface1Peer1V4Route1.Name()})
+
+	f2Eth := f2.Packet().Add().Ethernet()
+	f2Eth.Src().SetValue(d2Eth1.Mac())
+	f2Eth.Dst().SetValue("00:00:00:00:00:00")
+
+	f2Ip := f2.Packet().Add().Ipv4()
+	f2Ip.Src().SetValue("20.20.20.1")
+	f2Ip.Dst().SetValue("10.10.10.1")
+
+	return config
+}
+
+func AllBgp4SessionUp(api gosnappi.GosnappiApi, config gosnappi.Config) (bool, error) {
+	dNames := []string{}
+	for _, d := range config.Devices().Items() {
+		bgp := d.Bgp()
+		for _, ipv4 := range bgp.Ipv4Interfaces().Items() {
+			for _, peer := range ipv4.Peers().Items() {
+				dNames = append(dNames, peer.Name())
+			}
+		}
+	}
+
+	req := api.NewMetricsRequest()
+	req.Bgpv4().SetPeerNames(dNames)
+
+	dMetrics, err := api.GetMetrics(req)
+	if err != nil {
+		return false, err
+	}
+
+	routesTx := []int{}
+	routesRx := []int{}
+	actualSessionUp := 0
+	for _, d := range dMetrics.Bgpv4Metrics().Items() {
+		log.Printf("BGPv4 metric: Name: %v, Session State: %v, Routes Tx: %v, Routes Rx: %v ...\n", d.Name(), d.SessionState(), d.RoutesAdvertised(), d.RoutesReceived())
+		if d.SessionState() == gosnappi.Bgpv4MetricSessionState.UP {
+			actualSessionUp += 1
+		}
+		routesTx = append(routesTx, int(d.RoutesAdvertised()))
+		routesRx = append(routesRx, int(d.RoutesReceived()))
+	}
+	log.Printf("################################################\n\n")
+
+	return len(dNames) == actualSessionUp && TxRxRoutesOk(routesTx, routesRx), nil
 }
 
 func AllBgp6SessionUp(api gosnappi.GosnappiApi, config gosnappi.Config) (bool, error) {

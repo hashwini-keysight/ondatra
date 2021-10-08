@@ -19,23 +19,12 @@ nodes: {
     }
 }
 nodes: {
-    name: "arista1"
+    name: "arista"
     type: ARISTA_CEOS
     config: {
-    	image: "gcr.io/kt-nts-athena-dev/athena/ceosimage:4.26.0F"
-    }
-    services:{
-        key: 22
-        value: {
-            name: "ssh"
-            inside: 22
-        }
-    }
-}
-nodes: {
-    name: "arista2"
-    type: ARISTA_CEOS
-    config: {
+        config_path: "/mnt/flash"
+        config_file: "startup-config" 
+        file: "./enable_ssh_arista_config.txt"
     	image: "gcr.io/kt-nts-athena-dev/athena/ceosimage:4.26.0F"
     }
     services:{
@@ -65,46 +54,15 @@ nodes: {
         }
     }
 }
-nodes: {
-    name: "ixia-c-port3"
-    type: IXIA_TG
-    version: "0.0.1-2289"
-    services: {
-        key: 5555
-        value: {
-            inside: 5555
-            outside: 0
-        }
-    }
-    services: {
-        key: 50071
-        value: {
-            inside: 50071
-            outside: 0
-        }
-    }
-}
 links: {
     a_node: "ixia-c-port1"
     a_int: "eth1"
-    z_node: "arista1"
+    z_node: "arista"
     z_int: "eth1"
 }
 links: {
-    a_node: "arista1"
-    a_int: "eth2"
-    z_node: "arista2"
-    z_int: "eth1"
-}
-links: {
-    a_node: "arista2"
+    a_node: "arista"
     a_int: "eth2"
     z_node: "ixia-c-port2"
-    z_int: "eth1"
-}
-links: {
-    a_node: "arista2"
-    a_int: "eth3"
-    z_node: "ixia-c-port3"
     z_int: "eth1"
 }
