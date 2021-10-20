@@ -70,6 +70,14 @@ func Get() Binding {
 	return bind
 }
 
+// OTGApiClient interface for OTG's gosnappi
+type OTGClientApi interface {
+	API() gosnappi.GosnappiApi
+	Controller() string
+	Gnmi() string
+	Ports() map[string]string
+}
+
 // Binding is a strategy interface for Ondatra server implementations.
 //
 // The framework enforces that at most testbed is reserved at a time, so
@@ -137,11 +145,11 @@ type Binding interface {
 
 	// DialOTG creates a client connection to the OTG endpoint for the specified OTG.
 	// Implementations must append transport security options necessary to reach the server.
-	DialOTG(ctx context.Context, server string, useHttps bool) (gosnappi.GosnappiApi, error)
+	DialOTG(ctx context.Context) (OTGClientApi, error)
 
 	// DialOTGGNMI creates a client connection to the OTG GNMI endpoint for the specified OTG.
 	// Implementations must append transport security options necessary to reach the server.
-	DialOTGGNMI(ctx context.Context, server string, opts ...grpc.DialOption) (gpb.GNMIClient, error)
+	DialOTGGNMI(ctx context.Context, opts ...grpc.DialOption) (gpb.GNMIClient, error)
 
 	// PushTopology pushes a topology to the ATE.
 	// The framework has already verified that there is at least one interface

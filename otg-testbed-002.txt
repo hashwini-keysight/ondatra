@@ -1,5 +1,5 @@
-otgs {
-  id: "otg1"
+ates {
+  id: "ate1"
   vendor: IXIA
   ports {
     id: "port1"    
@@ -16,8 +16,8 @@ duts {
   }
 }
 
-otgs {
-  id: "otg2"
+ates {
+  id: "ate2"
   vendor: IXIA
   ports {
     id: "port1"    
@@ -25,11 +25,11 @@ otgs {
 }
 
 links {
-  a: "otg1:port1"
+  a: "ate1:port1"
   b: "dut1:port1"
 }
 
 links {
   a: "dut1:port2"
-  b: "otg2:port1"
+  b: "ate2:port1"
 }

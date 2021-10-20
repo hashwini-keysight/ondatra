@@ -66,15 +66,18 @@ func initOTGFakes(t *testing.T) (*reservation.Reservation, error) {
 	t.Helper()
 	initFakeBinding(t)
 
-	fakeBind.OTGDialer = func(ctx context.Context, server string, useHttps bool) (gosnappi.GosnappiApi, error) {
-		log.Infof("Dialing GRPC server %s", server)
+	fakeBind.OTGDialer = func(ctx context.Context) (binding.OTGClientApi, error) {
+		log.Infof("Dialing GRPC server %s", CONTROLLER_FAKE_SERVER)
 		api := gosnappi.NewApi()
-		if useHttps {
-			api.NewHttpTransport().SetLocation(server).SetVerify(false)
-		} else {
-			api.NewGrpcTransport().SetLocation(server).SetRequestTimeout(30)
-		}
-		return api, nil
+		api.NewHttpTransport().SetLocation(CONTROLLER_FAKE_SERVER).SetVerify(false)
+		ports := make(map[string]string)
+		ports["p1"] = "location1"
+		ports["p2"] = "location2"
+		ports["p3"] = "location3"
+
+		client := knebind.NewOTGClient(api, CONTROLLER_FAKE_SERVER, "", ports)
+		return client, nil
+
 	}
 
 	fmt.Print("Starting mock gRPC server for gosnappi ...\n")

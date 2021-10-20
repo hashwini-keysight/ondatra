@@ -119,10 +119,4 @@ func printReservation(res *reservation.Reservation) {
 			printf(pid, p.Name)
 		}
 	}
-	for id, a := range res.OTGs {
-		printf(id, a.Name)
-		for pid, p := range a.Ports {
-			printf(pid, p.Name)
-		}
-	}
 }

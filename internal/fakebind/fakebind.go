@@ -21,7 +21,6 @@ import (
 	"golang.org/x/net/context"
 
 	log "github.com/golang/glog"
-	"github.com/open-traffic-generator/snappi/gosnappi"
 	"github.com/openconfig/ondatra/internal/binding"
 	"github.com/openconfig/ondatra/internal/reservation"
 	"google.golang.org/grpc"
@@ -47,8 +46,8 @@ type Binding struct {
 	RoutingRestarter func(*reservation.DUT) error
 	PortStateSetter  func(*reservation.ATE, string, bool) error
 
-	OTGDialer     func(context.Context, string, bool) (gosnappi.GosnappiApi, error)
-	OTGGNMIDialer func(context.Context, string, ...grpc.DialOption) (gpb.GNMIClient, error)
+	OTGDialer     func(context.Context) (binding.OTGClientApi, error)
+	OTGGNMIDialer func(context.Context, ...grpc.DialOption) (gpb.GNMIClient, error)
 }
 
 // Reset zeros out all the stub implementations.
@@ -157,13 +156,13 @@ func (b *Binding) DialConsole(ctx context.Context, dut *reservation.DUT, opts ..
 }
 
 // DialOTG creates a client connection to the fake OTG server.
-func (b *Binding) DialOTG(ctx context.Context, server string, useHttps bool) (gosnappi.GosnappiApi, error) {
-	return b.OTGDialer(ctx, server, useHttps)
+func (b *Binding) DialOTG(ctx context.Context) (binding.OTGClientApi, error) {
+	return b.OTGDialer(ctx)
 }
 
 // DialOTGGNMI creates a client connection to the fake GNMI server.
-func (b *Binding) DialOTGGNMI(ctx context.Context, server string, opts ...grpc.DialOption) (gpb.GNMIClient, error) {
-	return b.OTGGNMIDialer(ctx, server, opts...)
+func (b *Binding) DialOTGGNMI(ctx context.Context, opts ...grpc.DialOption) (gpb.GNMIClient, error) {
+	return b.OTGGNMIDialer(ctx, opts...)
 }
 
 // HandleInfraFail logs the error and returns it unchanged.

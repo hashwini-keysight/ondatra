@@ -18,26 +18,25 @@ type WaitForOpts struct {
 	Timeout   time.Duration
 }
 
-const (
-	CONTROLLER_SERVER_URL = "https://34.135.220.233:443"
-	GRPC_SERVER_URL       = "104.197.54.237:40051"
-)
-
 func TestGoSnappiFake(t *testing.T) {
 	t.Log("TestGoSnappiFake - START ...")
 	_, err := initOTGFakes(t)
 	if err != nil {
 		t.Fatalf("initKneBind() call failed: %v", err)
 	}
-	otgs := OTGs(t)
-	api, err := binding.Get().DialOTG(context.Background(), CONTROLLER_FAKE_SERVER, false)
+
+	ATEs(t)
+
+	cliApi, err := binding.Get().DialOTG(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	api := cliApi.API()
 	defer api.NewConfig()
 
 	log.Println("Setting config ...")
-	config := PacketForwardBgpv6Config(api, otgs)
+	config := PacketForwardBgpv6Config(cliApi)
 	if _, err := api.SetConfig(config); err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +53,7 @@ func TestGoSnappiFake(t *testing.T) {
 }
 
 func TestGoSnappiK8s_001(t *testing.T) {
-	t.Log("TestGoSnappiK8s - START ...")
+	t.Log("TestGoSnappiK8s_001 - START ...")
 	_, err := initKneBind("otg-kne-001.yaml", "otg-testbed-001.txt")
 	if err != nil {
 		t.Fatalf("initKneBind() call failed: %v", err)
@@ -62,16 +61,20 @@ func TestGoSnappiK8s_001(t *testing.T) {
 	if err := reserve("otg-testbed-001.txt", time.Hour, 0); err != nil {
 		t.Fatalf("reserve() call failed: %v", err)
 	}
-	otgs := OTGs(t)
-	api, err := binding.Get().DialOTG(context.Background(), GRPC_SERVER_URL, false)
+
+	ATEs(t)
+
+	cliApi, err := binding.Get().DialOTG(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	api := cliApi.API()
 	defer api.NewConfig()
 	defer api.NewProtocolState().SetState(gosnappi.ProtocolStateState.STOP)
 
-	config := PacketForwardBgpv6Config(api, otgs)
-	log.Printf("%s\n", config.ToYaml())
+	config := PacketForwardBgpv6Config(cliApi)
+	//log.Printf("%s\n", config.ToYaml())
 	log.Println("Setting config ...")
 	if _, err := api.SetConfig(config); err != nil {
 		t.Fatal(err)
@@ -106,7 +109,7 @@ func TestGoSnappiK8s_001(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Log("TestGoSnappiK8s - END ...")
+	t.Log("TestGoSnappiK8s_001 - END ...")
 }
 func TestGoSnappiK8s_002(t *testing.T) {
 	t.Log("TestGoSnappiK8sEbgpv4Routes - START ...")
@@ -117,17 +120,19 @@ func TestGoSnappiK8s_002(t *testing.T) {
 	if err := reserve("otg-testbed-002.txt", time.Hour, 0); err != nil {
 		t.Fatalf("reserve() call failed: %v", err)
 	}
-	otgs := OTGs(t)
 
-	//api, err := binding.Get().DialOTG(context.Background(), CONTROLLER_SERVER_URL, true)
-	api, err := binding.Get().DialOTG(context.Background(), GRPC_SERVER_URL, false)
+	ATEs(t)
+
+	cliApi, err := binding.Get().DialOTG(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	api := cliApi.API()
 	defer api.NewConfig()
 	defer api.NewProtocolState().SetState(gosnappi.ProtocolStateState.STOP)
 
-	config := Bgpv4RoutesConfig(api, otgs)
+	config := Bgpv4RoutesConfig(cliApi)
 	//log.Printf("%s\n", config.ToYaml())
 	log.Println("Setting config ...")
 	if _, err := api.SetConfig(config); err != nil {
@@ -166,13 +171,20 @@ func TestGoSnappiK8s_002(t *testing.T) {
 	t.Log("TestGoSnappiK8sEbgpv4Routes - END ...")
 }
 
-func PacketForwardBgpv6Config(api gosnappi.GosnappiApi, otgs map[string]*Device) gosnappi.Config {
-	config := api.NewConfig()
+func PacketForwardBgpv6Config(cliApi binding.OTGClientApi) gosnappi.Config {
+	config := cliApi.API().NewConfig()
 
 	// add ports
-	p1 := config.Ports().Add().SetName("p1").SetLocation(otgs["otg1"].Ports()[0].Name())
-	p2 := config.Ports().Add().SetName("p2").SetLocation(otgs["otg2"].Ports()[0].Name())
-	p3 := config.Ports().Add().SetName("p3").SetLocation(otgs["otg3"].Ports()[0].Name())
+	var names []string
+	var locations []string
+	for name, location := range cliApi.Ports() {
+		names = append(names, name)
+		locations = append(locations, location)
+	}
+	cliApi.Ports()
+	p1 := config.Ports().Add().SetName(names[0]).SetLocation(locations[0])
+	p2 := config.Ports().Add().SetName(names[1]).SetLocation(locations[1])
+	p3 := config.Ports().Add().SetName(names[2]).SetLocation(locations[2])
 
 	// add devices
 	d1 := config.Devices().Add().SetName("d1")
@@ -435,56 +447,19 @@ func PacketForwardBgpv6Config(api gosnappi.GosnappiApi, otgs map[string]*Device)
 
 }
 
-func PortAndFlowMetricsOk(api gosnappi.GosnappiApi, config gosnappi.Config) (bool, error) {
-	expected := 0
-	for _, f := range config.Flows().Items() {
-		expected += int(f.Duration().FixedPackets().Packets())
-	}
-
-	fNames := []string{}
-	for _, f := range config.Flows().Items() {
-		fNames = append(fNames, f.Name())
-	}
-
-	pNames := []string{}
-	for _, p := range config.Ports().Items() {
-		pNames = append(pNames, p.Name())
-	}
-
-	fReq := api.NewMetricsRequest()
-	fReq.Flow().SetFlowNames(fNames)
-	fMetrics, err := api.GetMetrics(fReq)
-	if err != nil {
-		return false, err
-	}
-
-	pReq := api.NewMetricsRequest()
-	pReq.Port().SetPortNames(pNames)
-	pMetrics, err := api.GetMetrics(pReq)
-	if err != nil {
-		return false, err
-	}
-
-	actual := 0
-	for _, m := range fMetrics.FlowMetrics().Items() {
-		log.Printf("Flow metric: Name: %v, Frames Tx: %v, Frames Rx: %v ...\n", m.Name(), m.FramesTx(), m.FramesRx())
-		actual += int(m.FramesRx())
-	}
-
-	for _, p := range pMetrics.PortMetrics().Items() {
-		log.Printf("Port metric: Name: %v, Frames Tx: %v, Frames Rx: %v ...\n", p.Name(), p.FramesTx(), p.FramesRx())
-	}
-	log.Printf("################################################\n\n")
-
-	return expected == actual, nil
-}
-
-func Bgpv4RoutesConfig(api gosnappi.GosnappiApi, otgs map[string]*Device) gosnappi.Config {
-	config := api.NewConfig()
+func Bgpv4RoutesConfig(cliApi binding.OTGClientApi) gosnappi.Config {
+	config := cliApi.API().NewConfig()
 
 	// add ports
-	p1 := config.Ports().Add().SetName("p1").SetLocation(otgs["otg1"].Ports()[0].Name())
-	p2 := config.Ports().Add().SetName("p2").SetLocation(otgs["otg2"].Ports()[0].Name())
+	var names []string
+	var locations []string
+	for name, location := range cliApi.Ports() {
+		names = append(names, name)
+		locations = append(locations, location)
+	}
+	cliApi.Ports()
+	p1 := config.Ports().Add().SetName(names[0]).SetLocation(locations[0])
+	p2 := config.Ports().Add().SetName(names[1]).SetLocation(locations[1])
 
 	// add devices
 	d1 := config.Devices().Add().SetName("p1d1")
@@ -651,6 +626,50 @@ func Bgpv4RoutesConfig(api gosnappi.GosnappiApi, otgs map[string]*Device) gosnap
 	f2Ip.Dst().SetValue("10.10.10.1")
 
 	return config
+}
+
+func PortAndFlowMetricsOk(api gosnappi.GosnappiApi, config gosnappi.Config) (bool, error) {
+	expected := 0
+	for _, f := range config.Flows().Items() {
+		expected += int(f.Duration().FixedPackets().Packets())
+	}
+
+	fNames := []string{}
+	for _, f := range config.Flows().Items() {
+		fNames = append(fNames, f.Name())
+	}
+
+	pNames := []string{}
+	for _, p := range config.Ports().Items() {
+		pNames = append(pNames, p.Name())
+	}
+
+	fReq := api.NewMetricsRequest()
+	fReq.Flow().SetFlowNames(fNames)
+	fMetrics, err := api.GetMetrics(fReq)
+	if err != nil {
+		return false, err
+	}
+
+	pReq := api.NewMetricsRequest()
+	pReq.Port().SetPortNames(pNames)
+	pMetrics, err := api.GetMetrics(pReq)
+	if err != nil {
+		return false, err
+	}
+
+	actual := 0
+	for _, m := range fMetrics.FlowMetrics().Items() {
+		log.Printf("Flow metric: Name: %v, Frames Tx: %v, Frames Rx: %v ...\n", m.Name(), m.FramesTx(), m.FramesRx())
+		actual += int(m.FramesRx())
+	}
+
+	for _, p := range pMetrics.PortMetrics().Items() {
+		log.Printf("Port metric: Name: %v, Frames Tx: %v, Frames Rx: %v ...\n", p.Name(), p.FramesTx(), p.FramesRx())
+	}
+	log.Printf("################################################\n\n")
+
+	return expected == actual, nil
 }
 
 func AllBgp4SessionUp(api gosnappi.GosnappiApi, config gosnappi.Config) (bool, error) {

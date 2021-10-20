@@ -19,7 +19,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"os/exec"
-	"strings"
 	"sync"
 	"time"
 
@@ -55,12 +54,47 @@ var (
 	fetchTopo = fetchTopology // to be stubbed out by tests
 )
 
+type OTGClientApiImpl struct {
+	api   gosnappi.GosnappiApi
+	grpc  string
+	gnmi  string
+	ports map[string]string
+}
+
+func NewOTGClient(api gosnappi.GosnappiApi, grpc string, gnmi string, ports map[string]string) *OTGClientApiImpl {
+	return &OTGClientApiImpl{
+		api:   api,
+		grpc:  grpc,
+		gnmi:  gnmi,
+		ports: ports,
+	}
+}
+
+func (cli *OTGClientApiImpl) API() gosnappi.GosnappiApi {
+	return cli.api
+}
+
+func (cli *OTGClientApiImpl) Controller() string {
+	return cli.grpc
+}
+
+func (cli *OTGClientApiImpl) Gnmi() string {
+	return cli.gnmi
+}
+
+func (cli *OTGClientApiImpl) Ports() map[string]string {
+	return cli.ports
+}
+
 // Bind implements the ondatra Binding interface for KNE
 type Bind struct {
 	binding.Binding
 	dut2GNMIAddr map[*reservation.DUT]string
 	mu           sync.Mutex
 	cfg          *Config
+	ateCtrl      string
+	ateGnmi      string
+	atePorts     map[string]string
 }
 
 // New returns a new KNE bind instance.
@@ -71,6 +105,7 @@ func New(cfg *Config) (*Bind, error) {
 	return &Bind{
 		cfg:          cfg,
 		dut2GNMIAddr: make(map[*reservation.DUT]string),
+		atePorts:     make(map[string]string),
 	}, nil
 }
 
@@ -88,7 +123,7 @@ func (b *Bind) Reserve(ctx context.Context, tb *opb.Testbed, runTime time.Durati
 	res := &reservation.Reservation{
 		ID:   uuid.New(),
 		DUTs: make(map[string]*reservation.DUT),
-		OTGs: make(map[string]*reservation.OTG),
+		ATEs: make(map[string]*reservation.ATE),
 	}
 	for _, dut := range tb.GetDuts() {
 		resDUT, err := b.resolveDUT(dut, a)
@@ -97,12 +132,12 @@ func (b *Bind) Reserve(ctx context.Context, tb *opb.Testbed, runTime time.Durati
 		}
 		res.DUTs[dut.GetId()] = resDUT
 	}
-	for _, otg := range tb.GetOtgs() {
-		resOTG, err := b.resolveOTG(otg, a)
+	for _, ate := range tb.GetAtes() {
+		resATE, err := b.resolveATE(ate, a)
 		if err != nil {
 			return nil, err
 		}
-		res.OTGs[otg.GetId()] = resOTG
+		res.ATEs[ate.GetId()] = resATE
 	}
 	return res, nil
 }
@@ -114,7 +149,7 @@ func fetchTopology(cfg *Config) (*kpb.Topology, error) {
 	}
 	cmd := exec.Command(cfg.CLIPath, args...)
 	out, err := cmd.Output()
-	//fmt.Printf("Topology: %+v", out)
+	//fmt.Printf("Topology: %+v", string(out))
 	if err != nil {
 		return nil, errors.Wrapf(err, "error executing command %v", cmd)
 	}
@@ -151,14 +186,15 @@ func (b *Bind) resolveDUT(dev *opb.Device, a *assign) (*reservation.DUT, error) 
 	return dut, nil
 }
 
-func (b *Bind) resolveOTG(dev *opb.Device, a *assign) (*reservation.OTG, error) {
+func (b *Bind) resolveATE(dev *opb.Device, a *assign) (*reservation.ATE, error) {
 	node := a.dut2Node[dev]
 	vendor, ok := type2VendorMap[node.GetType()]
 	if !ok {
 		return nil, errors.Errorf("No known device vendor for node type: %v", node.GetType())
 	}
+
 	typeName := kpb.Node_Type_name[int32(node.GetType())]
-	otg := &reservation.OTG{&reservation.Dims{
+	ate := &reservation.ATE{&reservation.Dims{
 		Name:   node.GetName(),
 		Vendor: vendor,
 		// TODO: Determine appropriate hardware model and software version
@@ -166,32 +202,58 @@ func (b *Bind) resolveOTG(dev *opb.Device, a *assign) (*reservation.OTG, error) 
 		SoftwareVersion: typeName,
 		Ports:           make(map[string]*reservation.Port),
 	}}
+
 	if node.GetType() == kpb.Node_IXIA_TG {
-		for _, p := range dev.GetPorts() {
-			svc_names := ""
-			// reverse order
-			// FIXME: the oder of entires in the GetServices() map is random,
-			// its not garunteeded 5555 will and 50071 will appear next.
-			// Some meta is needed to distinguish b/n cp and dp pod
-			for _, svc := range node.GetServices() {
-				cur_svc := fmt.Sprintf("service-%s.%s.svc.cluster.local:%s", node.GetName(), a.topoNs, fmt.Sprint(svc.GetInside()))
-				tmp_svc := svc_names
-				svc_names = fmt.Sprintf("%s+%s", tmp_svc, cur_svc)
-			}
-			svc_names = strings.TrimPrefix(svc_names, "+")
-			otg.Ports[p.GetId()] = &reservation.Port{Name: svc_names}
-		}
-	} else {
-		for _, p := range dev.GetPorts() {
-			otg.Ports[p.GetId()] = &reservation.Port{Name: a.port2Intf[p].name}
-		}
+		b.resolveATE_IXIA(dev, a, node, ate)
+	}
+
+	for _, p := range dev.GetPorts() {
+		ate.Ports[p.GetId()] = &reservation.Port{Name: a.port2Intf[p].name}
 	}
 	//ga, err := gnmiAddr(node)
 	//if err != nil {
 	//	return nil, err
 	//}
 	//b.dut2GNMIAddr[otg] = ga
-	return otg, nil
+	return ate, nil
+}
+
+func (b *Bind) resolveATE_IXIA(dev *opb.Device, a *assign, node *kpb.Node, ate *reservation.ATE) error {
+
+	const GRPC_PORT = 40051
+	const GNMI_PORT = 50051
+	const TRAFFIC_ENGINE_PORT = 5555
+	const PROTOCOL_ENGINE_PORT = 50071
+	const MAX_PORT = 20
+
+	for _, p := range dev.GetPorts() {
+
+		var traffic_engine_svc string
+		var protocol_engine_svc string
+
+		for key, svc := range node.GetServices() {
+			if key >= GRPC_PORT && key < GRPC_PORT+MAX_PORT {
+				b.ateCtrl = fmt.Sprintf("%s:%s", svc.GetOutsideIp(), fmt.Sprint(svc.GetInside()))
+				continue
+			}
+			if key >= GNMI_PORT && key < GNMI_PORT+MAX_PORT {
+				b.ateGnmi = fmt.Sprintf("%s:%s", svc.GetOutsideIp(), fmt.Sprint(svc.GetInside()))
+				continue
+			}
+			if key >= TRAFFIC_ENGINE_PORT && key < TRAFFIC_ENGINE_PORT+MAX_PORT {
+				traffic_engine_svc = fmt.Sprintf("service-%s.%s.svc.cluster.local:%s", node.GetName(), a.topoNs, fmt.Sprint(svc.GetInside()))
+				continue
+			}
+			if key >= PROTOCOL_ENGINE_PORT && key < PROTOCOL_ENGINE_PORT+MAX_PORT {
+				protocol_engine_svc = fmt.Sprintf("service-%s.%s.svc.cluster.local:%s", node.GetName(), a.topoNs, fmt.Sprint(svc.GetInside()))
+				continue
+			}
+		}
+		svc_names := fmt.Sprintf("%s+%s", traffic_engine_svc, protocol_engine_svc)
+		ate.Ports[p.GetId()] = &reservation.Port{Name: svc_names}
+		b.atePorts[ate.Name] = svc_names
+	}
+	return nil
 }
 
 func gnmiAddr(node *kpb.Node) (string, error) {
@@ -229,24 +291,25 @@ func (b *Bind) DialGNMI(ctx context.Context, dut *reservation.DUT, opts ...grpc.
 	return gpb.NewGNMIClient(conn), nil
 }
 
-// DialOTG creates a client connection to the fake OTG server.
-func (b *Bind) DialOTG(ctx context.Context, server string, useHttps bool) (gosnappi.GosnappiApi, error) {
-	log.Infof("Dialing GRPC server %s", server)
+func (b *Bind) DialOTG(ctx context.Context) (binding.OTGClientApi, error) {
+	log.Infof("Dialing GRPC server %s", b.ateCtrl)
 	api := gosnappi.NewApi()
-	if useHttps {
-		api.NewHttpTransport().SetLocation(server).SetVerify(false)
-	} else {
-		api.NewGrpcTransport().SetLocation(server).SetRequestTimeout(30)
+	api.NewGrpcTransport().SetLocation(b.ateCtrl).SetRequestTimeout(30)
+	client := &OTGClientApiImpl{
+		api:   api,
+		grpc:  b.ateCtrl,
+		gnmi:  b.ateGnmi,
+		ports: b.atePorts,
 	}
-	return api, nil
+	return client, nil
 }
 
 // DialOTGGNMI creates a client connection to the fake GNMI server.
-func (b *Bind) DialOTGGNMI(ctx context.Context, server string, opts ...grpc.DialOption) (gpb.GNMIClient, error) {
-	log.Infof("Dialing GNMI server %s", server)
-	conn, err := grpc.DialContext(ctx, server, opts...)
+func (b *Bind) DialOTGGNMI(ctx context.Context, opts ...grpc.DialOption) (gpb.GNMIClient, error) {
+	log.Infof("Dialing GNMI server %s", b.ateGnmi)
+	conn, err := grpc.DialContext(ctx, b.ateGnmi, opts...)
 	if err != nil {
-		return nil, errors.Wrapf(err, "DialContext(ctx, %s, %v)", server, opts)
+		return nil, errors.Wrapf(err, "DialContext(ctx, %s, %v)", b.ateGnmi, opts)
 	}
 	return gpb.NewGNMIClient(conn), nil
 }

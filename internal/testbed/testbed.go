@@ -95,7 +95,6 @@ type portMap map[string]string
 func validateTB(tb *opb.Testbed) error {
 	pm := make(portMap)
 	devices := append(tb.GetDuts(), tb.GetAtes()...)
-	devices = append(devices, tb.GetOtgs()...)
 	for _, d := range devices {
 		if err := checkID(d.GetId()); err != nil {
 			return err
@@ -159,15 +158,6 @@ func validateRes(tb *opb.Testbed, res *reservation.Reservation) error {
 			return err
 		}
 		if err := validateDevice(ate, ra); err != nil {
-			return err
-		}
-	}
-	for _, otg := range tb.GetOtgs() {
-		ra, err := res.OTG(otg.GetId())
-		if err != nil {
-			return err
-		}
-		if err := validateDevice(otg, ra); err != nil {
 			return err
 		}
 	}

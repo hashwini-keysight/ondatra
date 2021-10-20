@@ -58,21 +58,23 @@ var (
 				SoftwareVersion: "juniperVersion",
 			}},
 		},
+		/*
+			ATEs: map[string]*reservation.ATE{
+				"ate": &reservation.ATE{&reservation.Dims{
+					Name:            "ix1",
+					Vendor:          opb.Device_IXIA,
+					HardwareModel:   "ixiaModel",
+					SoftwareVersion: "ixiaVersion",
+					Ports: map[string]*reservation.Port{
+						"port1": &reservation.Port{Name: "1/1"},
+						"port2": &reservation.Port{Name: "1/2"},
+					},
+				}},
+			},
+		*/
 		ATEs: map[string]*reservation.ATE{
-			"ate": &reservation.ATE{&reservation.Dims{
-				Name:            "ix1",
-				Vendor:          opb.Device_IXIA,
-				HardwareModel:   "ixiaModel",
-				SoftwareVersion: "ixiaVersion",
-				Ports: map[string]*reservation.Port{
-					"port1": &reservation.Port{Name: "1/1"},
-					"port2": &reservation.Port{Name: "1/2"},
-				},
-			}},
-		},
-		OTGs: map[string]*reservation.OTG{
-			"otg1": &reservation.OTG{&reservation.Dims{
-				Name:            "otg1",
+			"otg1": &reservation.ATE{&reservation.Dims{
+				Name:            "ate1",
 				Vendor:          opb.Device_IXIA,
 				HardwareModel:   "ixiaModel",
 				SoftwareVersion: "ixiaVersion",
@@ -80,8 +82,8 @@ var (
 					"port1": &reservation.Port{Name: "service-ixia-c-port1.ixia-c.svc.cluster.local:5555+service-ixia-c-port1.ixia-c.svc.cluster.local:50071"},
 				},
 			}},
-			"otg2": &reservation.OTG{&reservation.Dims{
-				Name:            "otg3",
+			"otg2": &reservation.ATE{&reservation.Dims{
+				Name:            "ate2",
 				Vendor:          opb.Device_IXIA,
 				HardwareModel:   "ixiaModel",
 				SoftwareVersion: "ixiaVersion",
@@ -89,8 +91,8 @@ var (
 					"port1": &reservation.Port{Name: "service-ixia-c-port2.ixia-c.svc.cluster.local:5555+service-ixia-c-port2.ixia-c.svc.cluster.local:50071"},
 				},
 			}},
-			"otg3": &reservation.OTG{&reservation.Dims{
-				Name:            "otg3",
+			"otg3": &reservation.ATE{&reservation.Dims{
+				Name:            "ate3",
 				Vendor:          opb.Device_IXIA,
 				HardwareModel:   "ixiaModel",
 				SoftwareVersion: "ixiaVersion",

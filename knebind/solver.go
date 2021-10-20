@@ -26,10 +26,7 @@ import (
 )
 
 func solve(tb *opb.Testbed, topo *kpb.Topology) (*assign, error) {
-	if len(tb.GetAtes()) > 0 {
-		return nil, errors.New("KNE binding does not yet support ATEs")
-	}
-	if numDUTs, numNodes := len(append(tb.GetDuts(), tb.GetOtgs()...)), len(topo.GetNodes()); numDUTs > numNodes {
+	if numDUTs, numNodes := len(append(tb.GetDuts(), tb.GetAtes()...)), len(topo.GetNodes()); numDUTs > numNodes {
 		return nil, errors.Errorf("Not enough nodes in KNE topology for specified testbed: "+
 			" testbed has %d DUTs and topology only has %d nodes", numDUTs, numNodes)
 	}
@@ -47,7 +44,7 @@ func solve(tb *opb.Testbed, topo *kpb.Topology) (*assign, error) {
 	}
 
 	// Cache various info in the solver about the testbed and topology.
-	for _, d := range append(s.testbed.GetDuts(), s.testbed.GetOtgs()...) {
+	for _, d := range append(s.testbed.GetDuts(), s.testbed.GetAtes()...) {
 		s.id2DUT[d.GetId()] = d
 		ports := make(map[string]*opb.Port)
 		for _, port := range d.GetPorts() {
@@ -114,7 +111,7 @@ func (s *solver) solve() (*assign, error) {
 	// for each of those, all the port->intf assignments.
 	dut2Nodes := make(map[interface{}][]interface{})
 	dut2Node2Port2Infs := make(map[*opb.Device]map[*kpb.Node]map[*opb.Port][]interface{})
-	for _, d := range append(s.testbed.GetDuts(), s.testbed.GetOtgs()...) {
+	for _, d := range append(s.testbed.GetDuts(), s.testbed.GetAtes()...) {
 		dut2Node2Port2Infs[d] = make(map[*kpb.Node]map[*opb.Port][]interface{})
 		var nodes []interface{}
 		for _, node := range s.topology.GetNodes() {
