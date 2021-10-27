@@ -147,10 +147,6 @@ type Binding interface {
 	// Implementations must append transport security options necessary to reach the server.
 	DialOTG(ctx context.Context) (OTGClientApi, error)
 
-	// DialOTGGNMI creates a client connection to the OTG GNMI endpoint for the specified OTG.
-	// Implementations must append transport security options necessary to reach the server.
-	DialOTGGNMI(ctx context.Context, opts ...grpc.DialOption) (gpb.GNMIClient, error)
-
 	// PushTopology pushes a topology to the ATE.
 	// The framework has already verified that there is at least one interface
 	// and that each port belongs to at most one port bundle.
