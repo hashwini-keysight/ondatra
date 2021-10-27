@@ -232,8 +232,8 @@ type StreamClient interface {
 	// to complete the operation. Additionaly, the result buffer will be fully
 	// consumed by SendCommand, ensuring it leaves a clean prompt behind.
 	SendCommand(context.Context, string) (string, error)
-	Stdin() io.Writer
-	Stdout() io.Reader
-	Stderr() io.Reader
+	Stdin() io.WriteCloser
+	Stdout() io.ReadCloser
+	Stderr() io.ReadCloser
 	Close() error
 }
