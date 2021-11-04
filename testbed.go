@@ -20,8 +20,10 @@ import (
 
 	"golang.org/x/net/context"
 
+	"github.com/openconfig/ondatra/internal/binding"
 	"github.com/openconfig/ondatra/internal/reservation"
 	"github.com/openconfig/ondatra/internal/testbed"
+	"github.com/openconfig/ondatra/knebind"
 )
 
 func reserve(testbedPath string, runTime, waitTime time.Duration) error {
@@ -73,6 +75,7 @@ func ATE(t testing.TB, id string) *ATEDevice {
 	if err != nil {
 		t.Fatalf("ATE(t, %s): %v", id, err)
 	}
+
 	return newATE(id, ra)
 }
 
@@ -87,8 +90,24 @@ func ATEs(t testing.TB) map[string]*ATEDevice {
 	return m
 }
 
+var (
+	otgClientApi *knebind.OTGClientApiImpl
+)
+
+// InitOTG initializes the OTG.
+func InitOTG() {
+	if otgClientApi == nil {
+		api, _ := binding.Get().DialOTG(context.Background())
+		otgClientApi = knebind.NewOTGClient(api.API(), api.Controller(), api.Gnmi(), api.Ports())
+	}
+}
+
 func newATE(id string, res *reservation.ATE) *ATEDevice {
-	return &ATEDevice{&Device{id: id, res: res}}
+	InitOTG()
+	return &ATEDevice{
+		&Device{id: id, res: res},
+		otgClientApi,
+	}
 }
 
 // ReservationID returns the reservation ID for the testbed.

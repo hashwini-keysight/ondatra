@@ -17,6 +17,7 @@ package binding
 
 import (
 	"io"
+	"testing"
 	"time"
 
 	"golang.org/x/net/context"
@@ -76,6 +77,12 @@ type OTGClientApi interface {
 	Controller() string
 	Gnmi() string
 	Ports() map[string]string
+	NewConfig(t *testing.T) gosnappi.Config
+	PushConfig(t *testing.T, config gosnappi.Config)
+	StartProtocols(t *testing.T)
+	StopProtocols(t *testing.T)
+	StartTraffic(t *testing.T)
+	StopTraffic(t *testing.T)
 }
 
 // Binding is a strategy interface for Ondatra server implementations.

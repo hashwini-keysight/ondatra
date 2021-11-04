@@ -54,38 +54,6 @@ var (
 	fetchTopo = fetchTopology // to be stubbed out by tests
 )
 
-type OTGClientApiImpl struct {
-	api   gosnappi.GosnappiApi
-	grpc  string
-	gnmi  string
-	ports map[string]string
-}
-
-func NewOTGClient(api gosnappi.GosnappiApi, grpc string, gnmi string, ports map[string]string) *OTGClientApiImpl {
-	return &OTGClientApiImpl{
-		api:   api,
-		grpc:  grpc,
-		gnmi:  gnmi,
-		ports: ports,
-	}
-}
-
-func (cli *OTGClientApiImpl) API() gosnappi.GosnappiApi {
-	return cli.api
-}
-
-func (cli *OTGClientApiImpl) Controller() string {
-	return cli.grpc
-}
-
-func (cli *OTGClientApiImpl) Gnmi() string {
-	return cli.gnmi
-}
-
-func (cli *OTGClientApiImpl) Ports() map[string]string {
-	return cli.ports
-}
-
 // Bind implements the ondatra Binding interface for KNE
 type Bind struct {
 	binding.Binding
