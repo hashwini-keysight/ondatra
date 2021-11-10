@@ -6,50 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/open-traffic-generator/snappi/gosnappi"
-	"github.com/openconfig/ondatra/internal/binding"
-	"golang.org/x/net/context"
+	"github.com/openconfig/ondatra/knebind"
 )
 
 type WaitForOpts struct {
 	Condition string
 	Interval  time.Duration
 	Timeout   time.Duration
-}
-
-func TestGoSnappiFake(t *testing.T) {
-	t.Log("TestGoSnappiFake - START ...")
-	_, err := initOTGFakes(t)
-	if err != nil {
-		t.Fatalf("initKneBind() call failed: %v", err)
-	}
-
-	ATEs(t)
-
-	cliApi, err := binding.Get().DialOTG(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	api := cliApi.API()
-	defer api.NewConfig()
-
-	log.Println("Setting config ...")
-	config := PacketForwardBgpv6Config(cliApi)
-	if _, err := api.SetConfig(config); err != nil {
-		t.Fatal(err)
-	}
-
-	gotConfig, err := api.GetConfig()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	diff := cmp.Diff(config.ToJson(), gotConfig.ToJson())
-	if diff != "" {
-		t.Errorf("Got unexpected diff in SetConfig and GetConfig : %s", diff)
-	}
 }
 
 func TestGoSnappiK8s_001(t *testing.T) {
@@ -63,56 +27,22 @@ func TestGoSnappiK8s_001(t *testing.T) {
 	}
 
 	ATEs(t)
+	otg := OTG(t)
 
-	cliApi, err := binding.Get().DialOTG(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
+	defer otg.NewConfig(t)
+	defer otg.StopProtocols(t)
 
-	api := cliApi.API()
-	defer api.NewConfig()
-	defer api.NewProtocolState().SetState(gosnappi.ProtocolStateState.STOP)
-
-	config := PacketForwardBgpv6Config(cliApi)
-	//log.Printf("%s\n", config.ToYaml())
-	log.Println("Setting config ...")
-	if _, err := api.SetConfig(config); err != nil {
-		t.Fatal(err)
-	}
-
-	log.Println("Start protocol ...")
-	state := api.NewProtocolState().SetState(gosnappi.ProtocolStateState.START)
-	if _, err := api.SetProtocolState(state); err != nil {
-		t.Fatal(err)
-	}
-
-	err = WaitFor(
-		func() (bool, error) { return AllBgp6SessionUp(api, config) }, nil,
-	)
-
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	log.Println("Starting transmit ...")
-	ts := api.NewTransmitState().SetState(gosnappi.TransmitStateState.START)
-	if _, err := api.SetTransmitState(ts); err != nil {
-		t.Fatal(err)
-	}
-
-	err = WaitFor(
-		func() (bool, error) { return PortAndFlowMetricsOk(api, config) }, nil,
-	)
-
-	if err != nil {
-		t.Fatal(err)
-	}
+	config := PacketForwardBgpv6Config(t, otg)
+	otg.PushConfig(t, config)
+	otg.StartProtocols(t)
+	WaitFor(t, func() (bool, error) { return AllBgp6SessionUp(otg.API(), config) }, nil)
+	otg.StartTraffic(t)
+	WaitFor(t, func() (bool, error) { return PortAndFlowMetricsOk(otg.API(), config) }, nil)
 
 	t.Log("TestGoSnappiK8s_001 - END ...")
 }
 func TestGoSnappiK8s_002(t *testing.T) {
-	t.Log("TestGoSnappiK8sEbgpv4Routes - START ...")
+	t.Log("TestGoSnappiK8s_002 - START ...")
 	_, err := initKneBind("otg-kne-002.yaml", "otg-testbed-002.txt")
 	if err != nil {
 		t.Fatalf("initKneBind() call failed: %v", err)
@@ -122,66 +52,32 @@ func TestGoSnappiK8s_002(t *testing.T) {
 	}
 
 	ATEs(t)
+	otg := OTG(t)
 
-	cliApi, err := binding.Get().DialOTG(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
+	defer otg.NewConfig(t)
+	defer otg.StopProtocols(t)
 
-	api := cliApi.API()
-	defer api.NewConfig()
-	defer api.NewProtocolState().SetState(gosnappi.ProtocolStateState.STOP)
+	config := Bgpv4RoutesConfig(t, otg)
+	otg.PushConfig(t, config)
+	otg.StartProtocols(t)
+	WaitFor(t, func() (bool, error) { return AllBgp4SessionUp(otg.API(), config) }, nil)
+	otg.StartTraffic(t)
+	WaitFor(t, func() (bool, error) { return PortAndFlowMetricsOk(otg.API(), config) }, nil)
 
-	config := Bgpv4RoutesConfig(cliApi)
-	//log.Printf("%s\n", config.ToYaml())
-	log.Println("Setting config ...")
-	if _, err := api.SetConfig(config); err != nil {
-		t.Fatal(err)
-	}
-
-	log.Println("Start protocol ...")
-	state := api.NewProtocolState().SetState(gosnappi.ProtocolStateState.START)
-	if _, err := api.SetProtocolState(state); err != nil {
-		t.Fatal(err)
-	}
-
-	err = WaitFor(
-		func() (bool, error) { return AllBgp4SessionUp(api, config) }, nil,
-	)
-
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	log.Println("Starting transmit ...")
-	ts := api.NewTransmitState().SetState(gosnappi.TransmitStateState.START)
-	if _, err := api.SetTransmitState(ts); err != nil {
-		t.Fatal(err)
-	}
-
-	err = WaitFor(
-		func() (bool, error) { return PortAndFlowMetricsOk(api, config) }, nil,
-	)
-
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Log("TestGoSnappiK8sEbgpv4Routes - END ...")
+	t.Log("TestGoSnappiK8s_002 - END ...")
 }
 
-func PacketForwardBgpv6Config(cliApi binding.OTGClientApi) gosnappi.Config {
-	config := cliApi.API().NewConfig()
+func PacketForwardBgpv6Config(t *testing.T, otg *knebind.OTG) gosnappi.Config {
+	config := otg.NewConfig(t)
 
 	// add ports
 	var names []string
 	var locations []string
-	for name, location := range cliApi.Ports() {
+	for name, location := range otg.Ports() {
 		names = append(names, name)
 		locations = append(locations, location)
 	}
-	cliApi.Ports()
+
 	p1 := config.Ports().Add().SetName(names[0]).SetLocation(locations[0])
 	p2 := config.Ports().Add().SetName(names[1]).SetLocation(locations[1])
 	p3 := config.Ports().Add().SetName(names[2]).SetLocation(locations[2])
@@ -447,17 +343,17 @@ func PacketForwardBgpv6Config(cliApi binding.OTGClientApi) gosnappi.Config {
 
 }
 
-func Bgpv4RoutesConfig(cliApi binding.OTGClientApi) gosnappi.Config {
-	config := cliApi.API().NewConfig()
+func Bgpv4RoutesConfig(t *testing.T, otg *knebind.OTG) gosnappi.Config {
+	config := otg.NewConfig(t)
 
 	// add ports
 	var names []string
 	var locations []string
-	for name, location := range cliApi.Ports() {
+	for name, location := range otg.Ports() {
 		names = append(names, name)
 		locations = append(locations, location)
 	}
-	cliApi.Ports()
+
 	p1 := config.Ports().Add().SetName(names[0]).SetLocation(locations[0])
 	p2 := config.Ports().Add().SetName(names[1]).SetLocation(locations[1])
 
@@ -742,7 +638,7 @@ func AllBgp6SessionUp(api gosnappi.GosnappiApi, config gosnappi.Config) (bool, e
 	return len(dNames) == actualSessionUp && TxRxRoutesOk(routesTx, routesRx), nil
 }
 
-func WaitFor(fn func() (bool, error), opts *WaitForOpts) error {
+func WaitFor(t *testing.T, fn func() (bool, error), opts *WaitForOpts) error {
 	if opts == nil {
 		opts = &WaitForOpts{
 			Condition: "condition to be true",
@@ -763,7 +659,7 @@ func WaitFor(fn func() (bool, error), opts *WaitForOpts) error {
 	for {
 		done, err := fn()
 		if err != nil {
-			return fmt.Errorf("error waiting for %s: %v", opts.Condition, err)
+			t.Fatal(fmt.Errorf("error waiting for %s: %v", opts.Condition, err))
 		}
 		if done {
 			log.Printf("Done waiting for %s\n", opts.Condition)
@@ -771,7 +667,7 @@ func WaitFor(fn func() (bool, error), opts *WaitForOpts) error {
 		}
 
 		if time.Since(start) > opts.Timeout {
-			return fmt.Errorf("timeout occurred while waiting for %s", opts.Condition)
+			t.Fatal(fmt.Errorf("timeout occurred while waiting for %s", opts.Condition))
 		}
 		time.Sleep(opts.Interval)
 	}

@@ -76,7 +76,7 @@ func ATE(t testing.TB, id string) *ATEDevice {
 		t.Fatalf("ATE(t, %s): %v", id, err)
 	}
 
-	return newATE(id, ra)
+	return newATE(t, id, ra)
 }
 
 // ATEs returns a map of ATE id to ATE in the testbed.
@@ -85,28 +85,31 @@ func ATEs(t testing.TB) map[string]*ATEDevice {
 	rm := checkRes(t).ATEs
 	m := make(map[string]*ATEDevice)
 	for id, ra := range rm {
-		m[id] = newATE(id, ra)
+		m[id] = newATE(t, id, ra)
 	}
 	return m
 }
 
 var (
-	otgClientApi *knebind.OTGClientApiImpl
+	otg *knebind.OTG
 )
 
 // InitOTG initializes the OTG.
-func InitOTG() {
-	if otgClientApi == nil {
-		api, _ := binding.Get().DialOTG(context.Background())
-		otgClientApi = knebind.NewOTGClient(api.API(), api.Controller(), api.Gnmi(), api.Ports())
+func OTG(t testing.TB) *knebind.OTG {
+	if otg == nil {
+		cliApiImp, _ := binding.Get().DialOTG(context.Background())
+		otg = knebind.NewOTG(&cliApiImp)
+		if otg == nil {
+			t.Fatalf("OTG(%v) is nil", otg)
+		}
 	}
+	return otg
 }
 
-func newATE(id string, res *reservation.ATE) *ATEDevice {
-	InitOTG()
+func newATE(t testing.TB, id string, res *reservation.ATE) *ATEDevice {
 	return &ATEDevice{
 		&Device{id: id, res: res},
-		otgClientApi,
+		OTG(t),
 	}
 }
 

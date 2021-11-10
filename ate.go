@@ -22,7 +22,7 @@ import (
 // ATEDevice is an automated test equipment.
 type ATEDevice struct {
 	*Device
-	*knebind.OTGClientApiImpl
+	*knebind.OTG
 }
 
 // Topology returns a handle to the topology API.
@@ -36,6 +36,6 @@ func (a *ATEDevice) Traffic() *Traffic {
 }
 
 // OTG returns a handle to the OTG API.
-func (a *ATEDevice) OTG() *knebind.OTGClientApiImpl {
-	return a.OTGClientApiImpl
+func (a *ATEDevice) API() *knebind.OTG {
+	return a.OTG
 }

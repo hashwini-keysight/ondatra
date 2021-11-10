@@ -29,4 +29,5 @@ require (
 	github.com/openconfig/grpctunnel v0.0.0-20210610163803-fde4a9dc048d // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/srl-labs/kne-controller v0.0.0-alpha5 // indirect
+	golang.org/x/crypto v0.0.0-20211108221036-ceb1ce70b4fa // indirect
 )

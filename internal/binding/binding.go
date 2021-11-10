@@ -17,7 +17,6 @@ package binding
 
 import (
 	"io"
-	"testing"
 	"time"
 
 	"golang.org/x/net/context"
@@ -72,17 +71,36 @@ func Get() Binding {
 }
 
 // OTGApiClient interface for OTG's gosnappi
-type OTGClientApi interface {
-	API() gosnappi.GosnappiApi
-	Controller() string
-	Gnmi() string
-	Ports() map[string]string
-	NewConfig(t *testing.T) gosnappi.Config
-	PushConfig(t *testing.T, config gosnappi.Config)
-	StartProtocols(t *testing.T)
-	StopProtocols(t *testing.T)
-	StartTraffic(t *testing.T)
-	StopTraffic(t *testing.T)
+type OTGClientApi struct {
+	api   gosnappi.GosnappiApi
+	grpc  string
+	gnmi  string
+	ports map[string]string
+}
+
+func NewOTGClientApi(api gosnappi.GosnappiApi, grpc string, gnmi string, ports map[string]string) OTGClientApi {
+	return OTGClientApi{
+		api:   api,
+		grpc:  grpc,
+		gnmi:  gnmi,
+		ports: ports,
+	}
+}
+
+func (otg *OTGClientApi) API() gosnappi.GosnappiApi {
+	return otg.api
+}
+
+func (otg *OTGClientApi) Controller() string {
+	return otg.grpc
+}
+
+func (otg *OTGClientApi) Gnmi() string {
+	return otg.gnmi
+}
+
+func (otg *OTGClientApi) Ports() map[string]string {
+	return otg.ports
 }
 
 // Binding is a strategy interface for Ondatra server implementations.

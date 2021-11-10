@@ -271,12 +271,7 @@ func (b *Bind) DialOTG(ctx context.Context) (binding.OTGClientApi, error) {
 	log.Infof("Dialing GRPC server %s", b.ateCtrl)
 	api := gosnappi.NewApi()
 	api.NewGrpcTransport().SetLocation(b.ateCtrl).SetRequestTimeout(30)
-	client := &OTGClientApiImpl{
-		api:   api,
-		grpc:  b.ateCtrl,
-		gnmi:  b.ateGnmi,
-		ports: b.atePorts,
-	}
+	client := binding.NewOTGClientApi(api, b.ateCtrl, b.ateGnmi, b.atePorts)
 	return client, nil
 }
 

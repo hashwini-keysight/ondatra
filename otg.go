@@ -75,7 +75,7 @@ func initOTGFakes(t *testing.T) (*reservation.Reservation, error) {
 		ports["p2"] = "location2"
 		ports["p3"] = "location3"
 
-		client := knebind.NewOTGClient(api, CONTROLLER_FAKE_SERVER, "", ports)
+		client := binding.NewOTGClientApi(api, CONTROLLER_FAKE_SERVER, "", ports)
 		return client, nil
 
 	}
