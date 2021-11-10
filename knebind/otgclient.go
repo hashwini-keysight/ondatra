@@ -20,79 +20,52 @@ import (
 	"testing"
 
 	"github.com/open-traffic-generator/snappi/gosnappi"
+	"github.com/openconfig/ondatra/internal/binding"
 )
 
-type OTGClientApiImpl struct {
-	api   gosnappi.GosnappiApi
-	grpc  string
-	gnmi  string
-	ports map[string]string
+type OTG struct {
+	cliApi binding.OTGClientApi
 }
 
-func NewOTGClient(api gosnappi.GosnappiApi, grpc string, gnmi string, ports map[string]string) *OTGClientApiImpl {
-	return &OTGClientApiImpl{
-		api:   api,
-		grpc:  grpc,
-		gnmi:  gnmi,
-		ports: ports,
-	}
+func (otg *OTG) OTG(t *testing.T) gosnappi.Config {
+	return otg.cliApi.OTG().NewConfig()
 }
 
-func (cli *OTGClientApiImpl) API() gosnappi.GosnappiApi {
-	return cli.api
-}
-
-func (cli *OTGClientApiImpl) Controller() string {
-	return cli.grpc
-}
-
-func (cli *OTGClientApiImpl) Gnmi() string {
-	return cli.gnmi
-}
-
-func (cli *OTGClientApiImpl) Ports() map[string]string {
-	return cli.ports
-}
-
-func (cli *OTGClientApiImpl) NewConfig(t *testing.T) gosnappi.Config {
-	return cli.api.NewConfig()
-}
-
-func (cli *OTGClientApiImpl) PushConfig(t *testing.T, config gosnappi.Config) {
+func (otg *OTG) PushConfig(t *testing.T, config gosnappi.Config) {
 	log.Println("Pushing config ...")
-	if _, err := cli.api.SetConfig(config); err != nil {
+	if _, err := otg.cliApi.OTG().SetConfig(config); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func (cli *OTGClientApiImpl) StartProtocols(t *testing.T) {
+func (otg *OTG) StartProtocols(t *testing.T) {
 	log.Println("Start protocols ...")
-	state := cli.api.NewProtocolState().SetState(gosnappi.ProtocolStateState.START)
-	if _, err := cli.api.SetProtocolState(state); err != nil {
+	state := otg.cliApi.OTG().NewProtocolState().SetState(gosnappi.ProtocolStateState.START)
+	if _, err := otg.cliApi.OTG().SetProtocolState(state); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func (cli *OTGClientApiImpl) StopProtocols(t *testing.T) {
+func (otg *OTG) StopProtocols(t *testing.T) {
 	log.Println("Stop protocols ...")
-	state := cli.api.NewProtocolState().SetState(gosnappi.ProtocolStateState.STOP)
-	if _, err := cli.api.SetProtocolState(state); err != nil {
+	state := otg.cliApi.OTG().NewProtocolState().SetState(gosnappi.ProtocolStateState.STOP)
+	if _, err := otg.cliApi.OTG().SetProtocolState(state); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func (cli *OTGClientApiImpl) StartTraffic(t *testing.T) {
+func (otg *OTG) StartTraffic(t *testing.T) {
 	log.Println("Starting transmit ...")
-	ts := cli.api.NewTransmitState().SetState(gosnappi.TransmitStateState.START)
-	if _, err := cli.api.SetTransmitState(ts); err != nil {
+	ts := otg.cliApi.OTG().NewTransmitState().SetState(gosnappi.TransmitStateState.START)
+	if _, err := otg.cliApi.OTG().SetTransmitState(ts); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func (cli *OTGClientApiImpl) StopTraffic(t *testing.T) {
+func (otg *OTG) StopTraffic(t *testing.T) {
 	log.Println("Stopping transmit ...")
-	ts := cli.api.NewTransmitState().SetState(gosnappi.TransmitStateState.STOP)
-	if _, err := cli.api.SetTransmitState(ts); err != nil {
+	ts := otg.cliApi.OTG().NewTransmitState().SetState(gosnappi.TransmitStateState.STOP)
+	if _, err := otg.cliApi.OTG().SetTransmitState(ts); err != nil {
 		t.Fatal(err)
 	}
 }
