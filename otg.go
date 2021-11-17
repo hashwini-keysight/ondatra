@@ -110,6 +110,8 @@ func (otg *OTG) StopTraffic(t *testing.T) {
 	}
 }
 
+// Interim API to get the gnmi information, later when we integrate with YANG
+// we will use DialATEGNMI
 func (otg *OTG) NewGnmiQuery(t *testing.T) *gnmiclient.Query {
 	addr := otg.cliApi.Gnmi()
 	log.Printf("New GNMI Query @%s", addr)
