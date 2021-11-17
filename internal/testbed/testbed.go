@@ -131,7 +131,7 @@ func validateTB(tb *opb.Testbed) error {
 	return nil
 }
 
-var idRE = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`)
+var idRE = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]*$`)
 
 // checkID enforces testbed IDs that "look like" variable names.
 // It ensures consistency and helps avoid the user mistakenly using a device name.

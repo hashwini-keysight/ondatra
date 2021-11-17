@@ -235,6 +235,23 @@ func (b *Bind) SetTestMetadata(_ *binding.TestMetadata) error {
 	return nil
 }
 
+func (b *Bind) PushConfig(ctx context.Context, dut *reservation.DUT, config string, opts *binding.ConfigOptions) error {
+
+	/*
+		if dut.Dims.Vendor == opb.Device_ARISTA {
+
+			if opts.Append != true {
+				sshCli := dut.NewSshClient(opts, location, "admin")
+				sshCli.Close()
+				sshCli.Exec("enable\nconfig terminal\n" + config)
+			} else {
+
+			}
+		}
+	*/
+	return nil
+}
+
 func (b *Bind) DialGNMI(ctx context.Context, dut *reservation.DUT, opts ...grpc.DialOption) (gpb.GNMIClient, error) {
 	addr := b.dut2GNMIAddr[dut]
 	log.Infof("Dialing GNMI dut %s@%s", dut.Name, addr)
@@ -253,7 +270,11 @@ func (b *Bind) DialGNMI(ctx context.Context, dut *reservation.DUT, opts ...grpc.
 
 func (b *Bind) DialATEGNMI(ctx context.Context, ate *reservation.ATE, opts ...grpc.DialOption) (gpb.GNMIClient, error) {
 	addr := b.ateGnmi
-	log.Infof("Dialing GNMI dut %s@%s", ate.Name, addr)
+	if ate != nil {
+		log.Infof("Dialing GNMI ATE %s@%s", ate.Name, addr)
+	} else {
+		log.Infof("Dialing GNMI ATE @%s", addr)
+	}
 	opts = append(opts,
 		grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})),
 		grpc.WithPerRPCCredentials(&passCred{

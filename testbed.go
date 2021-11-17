@@ -23,7 +23,6 @@ import (
 	"github.com/openconfig/ondatra/internal/binding"
 	"github.com/openconfig/ondatra/internal/reservation"
 	"github.com/openconfig/ondatra/internal/testbed"
-	"github.com/openconfig/ondatra/knebind"
 )
 
 func reserve(testbedPath string, runTime, waitTime time.Duration) error {
@@ -91,14 +90,14 @@ func ATEs(t testing.TB) map[string]*ATEDevice {
 }
 
 var (
-	otg *knebind.OTG
+	otg *OTG
 )
 
-// InitOTG initializes the OTG.
-func OTG(t testing.TB) *knebind.OTG {
+// OTGs initializes the OTG.
+func OTGs(t testing.TB) *OTG {
 	if otg == nil {
 		cliApiImp, _ := binding.Get().DialOTG(context.Background())
-		otg = knebind.NewOTG(&cliApiImp)
+		otg = NewOTG(&cliApiImp)
 		if otg == nil {
 			t.Fatalf("OTG(%v) is nil", otg)
 		}
@@ -109,7 +108,7 @@ func OTG(t testing.TB) *knebind.OTG {
 func newATE(t testing.TB, id string, res *reservation.ATE) *ATEDevice {
 	return &ATEDevice{
 		&Device{id: id, res: res},
-		OTG(t),
+		OTGs(t),
 	}
 }
 

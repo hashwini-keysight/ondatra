@@ -16,13 +16,12 @@ package ondatra
 
 import (
 	"github.com/openconfig/ondatra/internal/reservation"
-	"github.com/openconfig/ondatra/knebind"
 )
 
 // ATEDevice is an automated test equipment.
 type ATEDevice struct {
 	*Device
-	*knebind.OTG
+	*OTG
 }
 
 // Topology returns a handle to the topology API.
@@ -36,6 +35,6 @@ func (a *ATEDevice) Traffic() *Traffic {
 }
 
 // OTG returns a handle to the OTG API.
-func (a *ATEDevice) API() *knebind.OTG {
+func (a *ATEDevice) API() *OTG {
 	return a.OTG
 }

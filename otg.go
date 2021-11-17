@@ -1,89 +1,123 @@
+// Copyright 2021 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package knebind provides an Ondatra binding for KNE devices.
+
 package ondatra
 
 import (
-	"context"
-	"fmt"
-	"io/ioutil"
-	"sync"
+	"log"
 	"testing"
 	"time"
 
-	log "github.com/golang/glog"
 	"github.com/open-traffic-generator/snappi/gosnappi"
+	gnmiclient "github.com/openconfig/gnmi/client"
 	"github.com/openconfig/ondatra/internal/binding"
-	"github.com/openconfig/ondatra/internal/reservation"
-	"github.com/openconfig/ondatra/knebind"
-	opb "github.com/openconfig/ondatra/proto"
-	"github.com/pkg/errors"
-	"google.golang.org/protobuf/encoding/prototext"
 )
 
-const (
-	CONTROLLER_FAKE_SERVER = "localhost:40051"
-)
-
-var (
-	mutex   sync.Mutex
-	kenBind *knebind.Bind
-)
-
-func initKneBind(kneconfig string, testbedconfig string) (*reservation.Reservation, error) {
-	cfg, err := knebind.ParseConfigFile(kneconfig)
-	if err != nil {
-		return nil, errors.Errorf("Error in reading kne config, file: %v, err: %v", kneconfig, err)
-	}
-	tb := &opb.Testbed{}
-	s, err := ioutil.ReadFile(testbedconfig)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to read testbed proto %s", testbedconfig)
-	}
-	err = prototext.Unmarshal(s, tb)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to parse testbed proto %s", testbedconfig)
-	}
-	kne, err := knebind.New(cfg)
-	if err != nil {
-		return nil, errors.Errorf("New failed: %v", err)
-	}
-	kenRes, err := kne.Reserve(context.Background(), tb, time.Minute, time.Minute)
-	if err != nil {
-		return nil, errors.Errorf("Reserve() got error: %v", err)
-	}
-	if kenRes.ID == "" {
-		return nil, errors.Errorf("Reserve() got reservation missing ID: %v", kenRes)
-	}
-
-	mutex.Lock()
-	defer mutex.Unlock()
-	if kenBind == nil {
-		kenBind = kne
-		binding.Init(kenBind)
-	}
-	return kenRes, nil
+type OTG struct {
+	cliApi *binding.OTGClientApi
 }
 
-func initOTGFakes(t *testing.T) (*reservation.Reservation, error) {
-	t.Helper()
-	initFakeBinding(t)
+func NewOTG(cliApi *binding.OTGClientApi) *OTG {
+	return &OTG{cliApi: cliApi}
+}
 
-	fakeBind.OTGDialer = func(ctx context.Context) (binding.OTGClientApi, error) {
-		log.Infof("Dialing GRPC server %s", CONTROLLER_FAKE_SERVER)
-		api := gosnappi.NewApi()
-		api.NewHttpTransport().SetLocation(CONTROLLER_FAKE_SERVER).SetVerify(false)
-		ports := make(map[string]string)
-		ports["p1"] = "location1"
-		ports["p2"] = "location2"
-		ports["p3"] = "location3"
+func (otg *OTG) NewConfig(t *testing.T) gosnappi.Config {
+	return otg.cliApi.API().NewConfig()
+}
 
-		client := binding.NewOTGClientApi(api, CONTROLLER_FAKE_SERVER, "", ports)
-		return client, nil
+func (otg *OTG) PushConfig(t *testing.T, config gosnappi.Config) {
 
+	config_ports := config.Ports().Items()
+	topology_ports := otg.cliApi.Ports()
+	if len(topology_ports) < len(config_ports) {
+		t.Fatalf("Insufficient resources, total ports in config are %v, total ports in testbed are %v",
+			len(config_ports), len(topology_ports))
 	}
 
-	fmt.Print("Starting mock gRPC server for gosnappi ...\n")
-	if err := gosnappi.StartMockGrpcServer(CONTROLLER_FAKE_SERVER); err != nil {
-		return nil, errors.Wrapf(err, "Could not start gosnappi mock server %s", CONTROLLER_FAKE_SERVER)
+	log.Println("Setting port name and location ...")
+	matched_ports := 0
+	for _, port := range config_ports {
+		for topo_name, topo_location := range topology_ports {
+			if port.Name() == topo_name {
+				log.Printf("Setting port Name(Topology): %s, Location: %s, Name(Config) %s",
+					topo_name, topo_location, port.Name())
+				port.SetLocation(topo_location)
+				matched_ports++
+			}
+		}
 	}
-	reserveFakeTestbed(t)
-	return fakeBind.Reservation, nil
+
+	if matched_ports != len(config_ports) {
+		log.Printf("Error finding matching ports...")
+		for _, port := range config_ports {
+			log.Printf("Config port name: %s", port.Name())
+		}
+		for topo_name, topo_location := range topology_ports {
+			log.Printf("Topology port name: %s, location: %s", topo_name, topo_location)
+		}
+		t.Fatalf("Couldn't set locations for all ports, found match for %v out of total ports  %v",
+			matched_ports, len(topology_ports))
+	}
+
+	log.Println("Pushing config ...")
+	if _, err := otg.cliApi.API().SetConfig(config); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (otg *OTG) StartProtocols(t *testing.T) {
+	log.Println("Start protocols ...")
+	state := otg.cliApi.API().NewProtocolState().SetState(gosnappi.ProtocolStateState.START)
+	if _, err := otg.cliApi.API().SetProtocolState(state); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (otg *OTG) StopProtocols(t *testing.T) {
+	log.Println("Stop protocols ...")
+	state := otg.cliApi.API().NewProtocolState().SetState(gosnappi.ProtocolStateState.STOP)
+	if _, err := otg.cliApi.API().SetProtocolState(state); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (otg *OTG) StartTraffic(t *testing.T) {
+	log.Println("Starting transmit ...")
+	ts := otg.cliApi.API().NewTransmitState().SetState(gosnappi.TransmitStateState.START)
+	if _, err := otg.cliApi.API().SetTransmitState(ts); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (otg *OTG) StopTraffic(t *testing.T) {
+	log.Println("Stopping transmit ...")
+	ts := otg.cliApi.API().NewTransmitState().SetState(gosnappi.TransmitStateState.STOP)
+	if _, err := otg.cliApi.API().SetTransmitState(ts); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (otg *OTG) NewGnmiQuery(t *testing.T) *gnmiclient.Query {
+	addr := otg.cliApi.Gnmi()
+	log.Printf("New GNMI Query @%s", addr)
+	query := &gnmiclient.Query{
+		Addrs:   []string{addr},
+		Timeout: 10 * time.Second,
+		TLS:     nil,
+		Type:    gnmiclient.Once,
+	}
+	return query
 }
