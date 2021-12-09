@@ -90,11 +90,11 @@ func ATEs(t testing.TB) map[string]*ATEDevice {
 }
 
 var (
-	otg *OTG
+	otg *OTGAPI
 )
 
-// OTGs initializes the OTG.
-func OTGs(t testing.TB) *OTG {
+// newOTG initializes the OTG.
+func newOTG(t testing.TB) *OTGAPI {
 	if otg == nil {
 		cliApiImp, _ := binding.Get().DialOTG(context.Background())
 		otg = NewOTG(&cliApiImp)
@@ -108,7 +108,7 @@ func OTGs(t testing.TB) *OTG {
 func newATE(t testing.TB, id string, res *reservation.ATE) *ATEDevice {
 	return &ATEDevice{
 		&Device{id: id, res: res},
-		OTGs(t),
+		newOTG(t),
 	}
 }
 

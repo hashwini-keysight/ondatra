@@ -26,19 +26,19 @@ import (
 	"github.com/openconfig/ondatra/internal/binding"
 )
 
-type OTG struct {
+type OTGAPI struct {
 	cliApi *binding.OTGClientApi
 }
 
-func NewOTG(cliApi *binding.OTGClientApi) *OTG {
-	return &OTG{cliApi: cliApi}
+func NewOTG(cliApi *binding.OTGClientApi) *OTGAPI {
+	return &OTGAPI{cliApi: cliApi}
 }
 
-func (otg *OTG) NewConfig(t *testing.T) gosnappi.Config {
+func (otg *OTGAPI) NewConfig(t *testing.T) gosnappi.Config {
 	return otg.cliApi.API().NewConfig()
 }
 
-func (otg *OTG) PushConfig(t *testing.T, config gosnappi.Config) {
+func (otg *OTGAPI) PushConfig(t *testing.T, config gosnappi.Config) {
 
 	config_ports := config.Ports().Items()
 	topology_ports := otg.cliApi.Ports()
@@ -78,7 +78,7 @@ func (otg *OTG) PushConfig(t *testing.T, config gosnappi.Config) {
 	}
 }
 
-func (otg *OTG) StartProtocols(t *testing.T) {
+func (otg *OTGAPI) StartProtocols(t *testing.T) {
 	log.Println("Start protocols ...")
 	state := otg.cliApi.API().NewProtocolState().SetState(gosnappi.ProtocolStateState.START)
 	if _, err := otg.cliApi.API().SetProtocolState(state); err != nil {
@@ -86,7 +86,7 @@ func (otg *OTG) StartProtocols(t *testing.T) {
 	}
 }
 
-func (otg *OTG) StopProtocols(t *testing.T) {
+func (otg *OTGAPI) StopProtocols(t *testing.T) {
 	log.Println("Stop protocols ...")
 	state := otg.cliApi.API().NewProtocolState().SetState(gosnappi.ProtocolStateState.STOP)
 	if _, err := otg.cliApi.API().SetProtocolState(state); err != nil {
@@ -94,7 +94,7 @@ func (otg *OTG) StopProtocols(t *testing.T) {
 	}
 }
 
-func (otg *OTG) StartTraffic(t *testing.T) {
+func (otg *OTGAPI) StartTraffic(t *testing.T) {
 	log.Println("Starting transmit ...")
 	ts := otg.cliApi.API().NewTransmitState().SetState(gosnappi.TransmitStateState.START)
 	if _, err := otg.cliApi.API().SetTransmitState(ts); err != nil {
@@ -102,7 +102,7 @@ func (otg *OTG) StartTraffic(t *testing.T) {
 	}
 }
 
-func (otg *OTG) StopTraffic(t *testing.T) {
+func (otg *OTGAPI) StopTraffic(t *testing.T) {
 	log.Println("Stopping transmit ...")
 	ts := otg.cliApi.API().NewTransmitState().SetState(gosnappi.TransmitStateState.STOP)
 	if _, err := otg.cliApi.API().SetTransmitState(ts); err != nil {
@@ -112,7 +112,7 @@ func (otg *OTG) StopTraffic(t *testing.T) {
 
 // Interim API to get the gnmi information, later when we integrate with YANG
 // we will use DialATEGNMI
-func (otg *OTG) NewGnmiQuery(t *testing.T) *gnmiclient.Query {
+func (otg *OTGAPI) NewGnmiQuery(t *testing.T) *gnmiclient.Query {
 	addr := otg.cliApi.Gnmi()
 	log.Printf("New GNMI Query @%s", addr)
 	query := &gnmiclient.Query{

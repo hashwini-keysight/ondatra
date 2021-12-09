@@ -237,6 +237,9 @@ func (b *Bind) SetTestMetadata(_ *binding.TestMetadata) error {
 
 func (b *Bind) PushConfig(ctx context.Context, dut *reservation.DUT, config string, opts *binding.ConfigOptions) error {
 
+	addr := b.dut2GNMIAddr[dut]
+	log.Infof("DUT PushConfig %s@%s", dut.Name, addr)
+
 	/*
 		if dut.Dims.Vendor == opb.Device_ARISTA {
 
